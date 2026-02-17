@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  spring-app:
+    image: ghcr.io/youyeon11/spring-app:latest
+    container_name: spring-app
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./spring/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    networks:
+      - onestep-network
+    restart: unless-stopped
+
+  fastapi-app:
+    image: ghcr.io/youyeon11/fastapi-app:latest
+    container_name: fastapi-app
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./fastapi/.env
+    volumes:
+      - ./fastapi:/app
+      - /app/.venv
+      - ./fastapi/logs:/app/logs
+    depends_on:
+      mongodb:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    networks:
+      - onestep-network
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: onestep-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=False
+    networks:
+      - onestep-network
+    restart: unless-stopped
+  postgres:
+    image: postgres:16
+    container_name: onestep-postgres
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - onestep-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USER:-root} -d onestep"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:7.4.1
+    container_name: onestep-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${LOCAL_REDIS_PASSWORD:-myredispassword} --appendonly yes
+    volumes:
+      - redis_data:/data
+    environment:
+      - TZ=Asia/Seoul
+    networks:
+      - onestep-network
+    restart: unless-stopped
+  mongodb:
+    image: mongo:7.0
+    container_name: onestep-mongodb
+    ports:
+      - "27017:27017"
+    env_file:
+      - .env
+    volumes:
+      - mongodb_data:/data/db
+      - ./fastapi/mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      onestep-network:
+        aliases:
+          - mongo
+    restart: unless-stopped
+  kafka:
+    image: apache/kafka:latest
+    container_name: onestep-kafka
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@onestep-kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://onestep-kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - onestep-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongodb_data:
+  chromadb_data:
+
+networks:
+  onestep-network:
+    driver: bridge

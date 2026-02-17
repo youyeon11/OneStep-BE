@@ -1,0 +1,2 @@
+ALTER TABLE route_sessions
+    ADD COLUMN image_url VARCHAR(512) DEFAULT NULL;
