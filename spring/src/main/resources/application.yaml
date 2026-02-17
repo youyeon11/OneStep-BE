@@ -1,0 +1,65 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: "onestep-api"
+  config:
+    activate:
+      on-profile:
+        - "dev"
+        - "local"
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: validate
+        physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit_naming_strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl
+
+  jwt:
+    secret: ${JWT_SECRET_KEY}
+
+  ai:
+    vertex:
+      ai:
+        enabled: false
+    google:
+      genai:
+        enabled: false
+    custom:
+      google:
+        genai:
+          api-key: ${GMS_KEY}
+          model: gemini-2.5-flash
+
+logging:
+  level:
+    root: info
+    org.flywaydb: DEBUG
+
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+
+kakao:
+  api:
+    key: ${KAKAO_REST_API_KEY}
+
+cloud:
+  aws:
+    s3:
+      bucket: onestep-bucket-a508
+      access-key: ${S3_ACCESS_KEY}
+      secret-key: ${S3_SECRET_KEY}
+    region:
+      static: ap-northeast-2
+      auto: false

@@ -1,0 +1,7 @@
+package com.a508.onestep.domain.common;
+
+public enum RoleType {
+    ROLE_USER,
+    ROLE_ADMIN,
+    ROLE_SYSTEM
+}
