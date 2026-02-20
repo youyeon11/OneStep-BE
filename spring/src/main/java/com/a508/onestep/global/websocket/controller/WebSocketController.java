@@ -2,7 +2,7 @@ package com.a508.onestep.global.websocket.controller;
 
 import com.a508.onestep.global.logging.utils.LogUtils;
 import com.a508.onestep.global.websocket.dto.request.ChatMessageRequestDto;
-import com.a508.onestep.global.websocket.service.WebSocketService;
+import com.a508.onestep.global.websocket.service.WebSocketServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Controller;
 @RequiredArgsConstructor
 public class WebSocketController {
 
-    private final WebSocketService webSocketService;
+    private final WebSocketServiceImpl webSocketServiceImpl;
 
     /**
      * 연결 테스트
@@ -22,7 +22,7 @@ public class WebSocketController {
      */
     @MessageMapping("/connect")
     public void connect() {
-        webSocketService.connect();
+        webSocketServiceImpl.connect();
     }
 
     /**
@@ -38,7 +38,7 @@ public class WebSocketController {
      */
     @MessageMapping("/room/{roomId}/enter")
     public void enterRoom(@DestinationVariable("roomId") Long roomId) {
-        webSocketService.enterRoom(roomId);
+        webSocketServiceImpl.enterRoom(roomId);
     }
 
     /**
@@ -47,7 +47,7 @@ public class WebSocketController {
      */
     @MessageMapping("/room/{roomId}/exit")
     public void exitRoom(@DestinationVariable("roomId") Long roomId) {
-        webSocketService.exitRoom(roomId);
+        webSocketServiceImpl.exitRoom(roomId);
     }
 
     /**
@@ -60,7 +60,7 @@ public class WebSocketController {
             @DestinationVariable("roomId") Long roomId,
             @Payload ChatMessageRequestDto request
     ) {
-        webSocketService.sendMessage(roomId, request);
+        webSocketServiceImpl.sendMessage(roomId, request);
     }
 
     /**
