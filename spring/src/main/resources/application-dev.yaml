@@ -5,7 +5,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://postgres:${POSTGRES_PORT}/onestep?options=-c%20timezone%3DAsia%2FSeoul
+    url: jdbc:postgresql://postgres:5432/onestep?options=-c%20timezone%3DAsia%2FSeoul
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
 
@@ -23,15 +23,15 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_HOST}
-      password: ${LOCAL_REDIS_PASSWORD}
+      host: localhost
+      port: 6379
+      password: ${DEV_REDIS_PASSWORD}
 
     mongodb:
-      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongodb.infra.svc.cluster.local:${MONGO_PORT}/onestep_db?authSource=admin
+      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongodb.infra.svc.cluster.local:${MONGO_PORT}/${MONGO_DB_NAME}?authSource=admin
       host: ${MONGO_HOST}
       port: ${MONGO_PORT}
-      database: onestep_db
+      database: ${MONGO_DB_NAME}
       username: ${MONGO_USERNAME}
       password: ${MONGO_PASSWORD}
       authentication-database: admin
