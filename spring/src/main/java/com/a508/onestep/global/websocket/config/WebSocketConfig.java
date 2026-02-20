@@ -1,0 +1,47 @@
+package com.a508.onestep.global.websocket.config;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+
+@Configuration
+@EnableWebSocketMessageBroker
+@RequiredArgsConstructor
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
+    private final JwtChannelInterceptor jwtChannelInterceptor;
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setAllowedOriginPatterns("*");
+    }
+
+    /**
+     * 메시지 브로커 설정
+     */
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        // 클라이언트 -> 서버
+        config.setApplicationDestinationPrefixes("/app");
+        // user 개별 메시지
+        config.setUserDestinationPrefix("/user");
+        // Redis Pub/Sub 브로커
+        config.enableSimpleBroker("/topic", "/queue");
+    }
+
+    /**
+     * JWT 인터셉터 등록
+     */
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(jwtChannelInterceptor);
+    }
+}
