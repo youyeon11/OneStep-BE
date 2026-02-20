@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16
@@ -28,7 +26,7 @@ services:
       TZ: Asia/Seoul
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: kafka
     ports:
       - "9094:9094"
@@ -44,6 +42,8 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - kafka-net
 
@@ -68,6 +68,10 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=onestep
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      - mongodb_data:/data/db
 
   mongo-express:
     image: mongo-express:latest
@@ -80,10 +84,14 @@ services:
       - ME_CONFIG_MONGODB_ADMINUSERNAME=root
       - ME_CONFIG_MONGODB_ADMINPASSWORD=password
       - ME_CONFIG_MONGODB_SERVER=mongodb
+    depends_on:
+      - mongodb
 
 volumes:
   postgres_data:
   redis_data:
+  mongodb_data:
+  kafka_data:
 
 networks:
   kafka-net:
