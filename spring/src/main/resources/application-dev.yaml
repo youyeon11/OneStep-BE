@@ -64,4 +64,4 @@ management:
       application: onestep-api
 
 openapi:
-  base-url: http://${SERVER_IP}/api
+  base-url: http://${SERVER_IP}:8080
