@@ -14,6 +14,7 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
     networks:
       - monitoring
 
@@ -84,29 +85,47 @@ services:
       - monitoring
 
   k6:
-      image: grafana/k6:latest
-      container_name: k6
-      volumes:
-        - ./k6/script.js:/scripts
-      ports:
-        - "5665:5665"
-      environment:
-        - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
-        - K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true
-        - K6_WEB_DASHBOARD=true
-        - K6_WEB_DASHBOARD_PORT=5665
-        - K6_WEB_DASHBOARD_HOST=0.0.0.0
-      depends_on:
-        - prometheus
-      networks:
-        - monitoring
-      entrypoint: /bin/sh
-      tty: true
+    image: grafana/k6:latest
+    container_name: k6
+    env_file:
+      - .env
+    volumes:
+      - ./k6:/scripts
+    ports:
+      - "5665:5665"
+    environment:
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      - K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true
+      - K6_WEB_DASHBOARD=true
+      - K6_WEB_DASHBOARD_PORT=5665
+      - K6_WEB_DASHBOARD_HOST=0.0.0.0
+      - K6_INFLUXDB_ADDR=http://influxdb:8086
+      - K6_INFLUXDB_DB=k6
+    depends_on:
+      - prometheus
+      - influxdb
+    networks:
+      - monitoring
+    entrypoint: /bin/sh
+    tty: true
+
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb:/var/lib/influxdb
+    environment:
+      - INFLUXDB_DB=k6
+    networks:
+      - monitoring
 
 volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  influxdb:
 
 networks:
   monitoring:
