@@ -85,6 +85,7 @@ services:
     networks:
       - onestep-network
     restart: unless-stopped
+
   mongodb:
     image: mongo:7.0
     container_name: onestep-mongodb
@@ -94,12 +95,13 @@ services:
       - .env
     volumes:
       - mongodb_data:/data/db
-      - ./fastapi/mongo-init:/docker-entrypoint-initdb.d
+      - ./init-challenges.js:/docker-entrypoint-initdb.d/init-challenges.js:ro
     networks:
       onestep-network:
         aliases:
           - mongo
     restart: unless-stopped
+
   kafka:
     image: apache/kafka:latest
     container_name: onestep-kafka
