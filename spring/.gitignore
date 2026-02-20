@@ -13,7 +13,7 @@ build/
 !**/src/test/**/build/
 
 ### IntelliJ IDEA ###
-.idea/
+.idea
 *.iws
 *.iml
 *.ipr
@@ -43,9 +43,4 @@ logs/
 .DS_Store
 Thumbs.db
 
-### Secrets (보안 주의) ###
-# DB 비밀번호나 API 키가 포함된 설정 파일은 절대 커밋하지 마세요.
-# 예: application-secret.properties 또는 .env 파일
-# application.properties
-# application.yml
 .env
