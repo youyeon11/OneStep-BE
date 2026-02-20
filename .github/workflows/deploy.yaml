@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-22.04
+    outputs:
+      spring: ${{ steps.filter.outputs.spring }}
+      fastapi: ${{ steps.filter.outputs.fastapi }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Detect Change
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            spring:
+              - 'spring/**'
+            fastapi:
+              - 'fastapi/**'
+
+  deploy-spring:
+    name: Deploy Spring
+    needs: detect-changes
+    if: needs.detect-changes.outputs.spring == 'true'
+    uses: ./.github/workflows/spring-deploy.yaml
+    secrets: inherit
+
+  deploy-fastapi:
+    name: Deploy FastAPI
+    needs: detect-changes
+    if: needs.detect-changes.outputs.fastapi == 'true'
+    uses: ./.github/workflows/fastapi-deploy.yaml
+    secrets: inherit
