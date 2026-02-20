@@ -28,13 +28,17 @@ public class UserSignalLogEvent {
     private final Origin eventType;
     private final AssignmentStatus eventStatus;
     private final LocalDateTime generatedAt;
+    private final LocalDateTime completedAt;
+    private final Integer emotion;
 
     public UserSignalLogEvent(
             String userCode,
             Long targetId,
             LocalDate assignedDate,
             Origin eventType,
-            AssignmentStatus eventStatus
+            AssignmentStatus eventStatus,
+            LocalDateTime completedAt,
+            Integer emotion
     ) {
         this.userCode = userCode;
         this.targetId = targetId;
@@ -42,6 +46,8 @@ public class UserSignalLogEvent {
         this.eventType = eventType;
         this.eventStatus = eventStatus;
         this.generatedAt = LocalDateTime.now();
+        this.completedAt = completedAt;
+        this.emotion = emotion;
     }
 
     /**
@@ -57,7 +63,9 @@ public class UserSignalLogEvent {
                 event.getChallengeId(),
                 event.getAssignedDate(),
                 event.getEventType(),
-                event.getEventStatus()
+                event.getEventStatus(),
+                event.getCompletedAt(),
+                event.getEmotion()
         );
     }
 }
