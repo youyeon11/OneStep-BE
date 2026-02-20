@@ -1,6 +1,3 @@
-// MongoDB 초기화 스크립트: 챌린지 데이터 자동 삽입
-// Docker 컨테이너 시작 시 자동 실행됨
-
 print('===== 챌린지 데이터 초기화 시작 =====');
 
 db = db.getSiblingDB('onestep_db');
