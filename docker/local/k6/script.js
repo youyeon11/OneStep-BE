@@ -6,11 +6,11 @@ export const options = {
     insecureSkipTLSVerify: true, // SSL 인증서 무시 (Ignore SSL certificate errors)
 
     stages: [
-        { duration: '3m', target: 2000 },
+        { duration: '10m', target: 500 },
     ],
 };
 
-const BASE_URL = 'http://localhost:8080';
+const BASE_URL = __ENV.K6_BASE_URL;
 
 export default function () {
     let accessToken = '';
@@ -52,12 +52,12 @@ export default function () {
     group('02_Register_Survey', function () {
         const answers = [];
         for (let i = 1; i <= 15; i++) {
-            answers.push(Math.floor(Math.random() * 4)) // 0-3점 랜덤 부여 );
+            answers.push( Math.floor(Math.random() * 4)) // 0-3점 랜덤 부여 );
         }
 
         const totalScore = answers.reduce((acc, cur) => acc + cur, 0);
 
-        const payload = JSON.stringify({ answers: answers, totalScore: totalScore });
+        const payload = JSON.stringify({ answers: answers, totalScore: totalScore});
         const res = http.post(`${BASE_URL}/api/v1/users/survey`, payload, authHeaders);
 
         check(res, {
