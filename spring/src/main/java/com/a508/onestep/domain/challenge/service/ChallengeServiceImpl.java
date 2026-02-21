@@ -48,7 +48,7 @@ public class ChallengeServiceImpl implements ChallengeService {
     private final KafkaProducer kafkaProducer;
 
     /*
-    챌린지(할 일) 등록하기
+     * 챌린지(할 일) 등록하기
      */
     @Override
     @Transactional
@@ -82,24 +82,23 @@ public class ChallengeServiceImpl implements ChallengeService {
     }
 
     /*
-    내가 추가한 챌린지(할 일) 조회하기
+     * 내가 추가한 챌린지(할 일) 조회하기
      */
     @Override
     @Transactional(readOnly = true)
     public List<ChallengeResponseDto> getAll() {
         String userCode = UserContextHolder.getUserCode();
-        User user = userRepository.findByUserCode(userCode)
-                .orElseThrow(() -> BusinessException.of(ErrorCode.USER_NOT_FOUND));
 
         LocalDate today = LocalDate.now();
-        List<ChallengeAssignment> challengeAssignmentList = challengeAssignmentRepository.findSelfByUserIdAndAssignedDate(user.getId(), today, Origin.SELF);
+        List<ChallengeAssignment> challengeAssignmentList = challengeAssignmentRepository
+                .findByUserCodeAndAssignedDateAndOrigin(userCode, today, Origin.SELF);
         return challengeAssignmentList.stream()
                 .map(ChallengeResponseDto::from)
                 .toList();
     }
 
     /*
-    챌린지 완료 체크하기
+     * 챌린지 완료 체크하기
      */
     @Override
     @Transactional
@@ -107,18 +106,17 @@ public class ChallengeServiceImpl implements ChallengeService {
 
         // 사용자 찾기
         String userCode = UserContextHolder.getUserCode();
-        User user = userRepository.findByUserCode(userCode)
-                        .orElseThrow(() -> BusinessException.of(ErrorCode.USER_NOT_FOUND));
 
-        ChallengeAssignment challengeAssignment = challengeAssignmentRepository.findById(requestDto.getChallengeId())
+        ChallengeAssignment challengeAssignment = challengeAssignmentRepository
+                .findByIdWithUser(requestDto.getChallengeId())
                 .orElseThrow(() -> BusinessException.of(ErrorCode.CHALLENGE_NOT_FOUND));
 
         // 이미 완료된 거면 안 됨
         if (challengeAssignment.getChallengeStatus().equals(AssignmentStatus.COMPLETED)) {
             throw BusinessException.of(ErrorCode.CHALLENGE_ALREADY_DONE);
         }
-        // 해당 사용자의 Challenge 맞는지 조회
-        if (challengeAssignment.getUser().getId() != user.getId()) {
+        // 해당 사용자의 Challenge 맞는지 조회 (JOIN FETCH로 가져온 user 활용)
+        if (!challengeAssignment.getUser().getUserCode().equals(userCode)) {
             throw BusinessException.of(ErrorCode.UNAUTHORIZED);
         }
 
@@ -132,7 +130,7 @@ public class ChallengeServiceImpl implements ChallengeService {
     }
 
     /*
-    랜덤으로 20개 선정
+     * 랜덤으로 20개 선정
      */
     @Override
     public List<InitialChallengeResponseDto> getInitialRecommendations() {
@@ -142,17 +140,16 @@ public class ChallengeServiceImpl implements ChallengeService {
 
         Integer recoveryLevel = user.getRecoveryLevel();
         List<TagCategory> categories = List.of(TagCategory.values());
-        List<ChallengeMaster> challengeMasterList =
-                challengeMasterRepository.findRecommendedChallenges(recoveryLevel, categories, user);
+        List<ChallengeMaster> challengeMasterList = challengeMasterRepository
+                .findRecommendedChallenges(recoveryLevel, categories, user);
 
         return challengeMasterList.stream()
-                .limit(20)
                 .map(InitialChallengeResponseDto::from)
                 .toList();
     }
 
     /*
-    여러개를 선택해서 저장
+     * 여러개를 선택해서 저장
      */
     @Transactional
     @Override
@@ -166,15 +163,15 @@ public class ChallengeServiceImpl implements ChallengeService {
         LocalDate today = LocalDate.now();
         List<ChallengeAssignment> challengeAssignmentList = requestDto.stream()
                 .map(dto -> ChallengeAssignment.builder()
-                        .challengeMasterId(dto.getMasterChallengeId() == null ? null : dto.getMasterChallengeId())
+                        .challengeMasterId(dto.getMasterChallengeId() == null ? null
+                                : dto.getMasterChallengeId())
                         .user(user)
                         .content(dto.getContent())
                         .exp(dto.getExp())
                         .challengeStatus(AssignmentStatus.ASSIGNED)
                         .origin(Origin.RECOMMENDED)
                         .assignedDate(today)
-                        .build()
-                )
+                        .build())
                 .toList();
 
         challengeAssignmentRepository.saveAll(challengeAssignmentList);
@@ -183,7 +180,6 @@ public class ChallengeServiceImpl implements ChallengeService {
                 .map(ChallengeResponseDto::from)
                 .toList();
     }
-
 
     @Transactional
     @Override
@@ -195,50 +191,42 @@ public class ChallengeServiceImpl implements ChallengeService {
 
         // 유저 코드 받아 오기
         String userCode = UserContextHolder.getUserCode();
-        User user = userRepository.findByUserCode(userCode)
-                .orElseThrow(() -> BusinessException.of(ErrorCode.USER_NOT_FOUND));
 
-        Long userId = user.getId();
-
-        LogUtils.info("유저 코드 받아 오기, payload={}",user);
-        List<ChallengeAssignment> existingChllengeAssignmentList = challengeAssignmentRepository.findSelfByUserIdAndAssignedDate(userId, LocalDate.now(), Origin.RECOMMENDED);
+        LogUtils.info("유저 코드 받아 오기, payload={}", userCode);
+        List<ChallengeAssignment> existingChllengeAssignmentList = challengeAssignmentRepository
+                .findByUserCodeAndAssignedDateAndOrigin(userCode, LocalDate.now(), Origin.RECOMMENDED);
         if (existingChllengeAssignmentList != null && !existingChllengeAssignmentList.isEmpty()) {
             return existingChllengeAssignmentList.stream()
                     .map(ChallengeResponseDto::from)
                     .toList();
         }
 
-        // 1. 몽고DB에서 데이터를 가져온다
+        // 새 할당 생성이 필요한 경우에만 user 조회
+        User user = userRepository.findByUserCode(userCode)
+                .orElseThrow(() -> BusinessException.of(ErrorCode.USER_NOT_FOUND));
+
+        // MongoDB로부터 추천 가져오기
         RecommendedRoutine recommendedRoutine = recommendedRoutineRepository.findByUserCode(userCode)
                 .orElseThrow(() -> BusinessException.of(ErrorCode.RECOMMENDATION_NOT_FOUND));
-        
-        LogUtils.info("1. 몽고DB에서 데이터를 가져온다, payload={}",recommendedRoutine);
 
-        // 몽고DB에서 가져온 챌린지 리스트 생성
+        LogUtils.info("MongoDB로부터 가져온 RecommendedRoutine={}", recommendedRoutine);
+
         List<RecommendedRoutine.Recommendation> recommendations = recommendedRoutine.getRecommendations();
-        
-        LogUtils.info("몽고DB에서 가져온 챌린지 리스트 생성, payload={}",recommendations);
 
-        // 2. ChallengeMaster에 존재하는지 여부 확인
-        // challengeId 리스트 생성
+        // challengeMasterId 리스트 생성
         List<Long> challengeIdList = recommendations.stream()
                 .map(RecommendedRoutine.Recommendation::getChallengeCode)
                 .toList();
-        LogUtils.info("2. ChallengeMaster에 존재하는지 여부 확인, payload={}",challengeIdList);
-
-        // 챌린지 마스터 객체 리스트 생성
         List<ChallengeMaster> foundMasters = challengeMasterRepository.findAllById(challengeIdList);
 
-        LogUtils.info("챌린지 마스터 객체 리스트 생성, payload={}",foundMasters);
+        LogUtils.info("챌린지 마스터 객체 리스트 생성, payload={}", foundMasters);
 
-        // ChallengeMaster에 존재하는지 여부 확인
-        // 누락된 챌린지 번호 확인 및 에러 반환
         if (foundMasters.size() != challengeIdList.size()) {
-            //존재하는 번호 집합 만들기
+            // 존재하는 번호 집합 만들기
             Set<Long> foundIds = foundMasters.stream()
                     .map(ChallengeMaster::getId)
                     .collect(Collectors.toSet());
-            //없는 번호 리스트 생성
+            // 없는 번호 리스트 생성
             List<Long> missingIds = challengeIdList.stream()
                     .filter(id -> !foundIds.contains(id))
                     .toList();
@@ -247,18 +235,15 @@ public class ChallengeServiceImpl implements ChallengeService {
             throw BusinessException.of(ErrorCode.CHALLENGE_NOT_FOUND);
         }
 
-        // 3. challengeId를 key로 하는 Map 생성
+        // ChallengeMaster ID Mapping
         Map<Long, ChallengeMaster> challengeMasterMap = foundMasters.stream()
                 .collect(Collectors.toMap(
                         ChallengeMaster::getId, // challengeMaster의 id를 key로
                         master -> master // challengeMaster를 value로
                 ));
 
-        //3. 포스트그리에 저장
-        // 저장할 챌린지 리스트 작성(ChallengeAssignment)
         List<ChallengeAssignment> challengeAssignmentList = challengeIdList.stream()
                 .map(challengeId -> {
-                    // map에서 challengeId로 객체를 꺼낸다
                     ChallengeMaster master = challengeMasterMap.get(challengeId);
 
                     return ChallengeAssignment.builder()
@@ -272,18 +257,15 @@ public class ChallengeServiceImpl implements ChallengeService {
                             .build();
                 })
                 .toList();
-        // 한번에 저장
         challengeAssignmentRepository.saveAll(challengeAssignmentList);
         LogUtils.info("{}개의 챌린지가 정상 저장되었습니다.", challengeAssignmentList.size());
 
-        // DTO 객체 리스트 생성
         List<ChallengeResponseDto> recommendedRoutineList = challengeAssignmentList.stream()
                 .map(ChallengeResponseDto::from)
                 .toList();
 
-        // 4. 카프카에 유저 코드 저장
+        // UserCode 저장
         kafkaProducer.send(KafkaTopics.VISITED_USER, userCode);
         return recommendedRoutineList;
     }
-
 }
