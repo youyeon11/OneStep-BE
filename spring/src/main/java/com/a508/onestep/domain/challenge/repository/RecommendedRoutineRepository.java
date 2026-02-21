@@ -11,6 +11,4 @@ import java.util.Optional;
 public interface RecommendedRoutineRepository extends MongoRepository<RecommendedRoutine, String> {
 
     Optional<RecommendedRoutine> findByUserCode(String userCode);
-
-    void deleteByUserCode(String userCode);
 }

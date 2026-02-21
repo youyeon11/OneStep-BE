@@ -28,17 +28,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     Optional<User> findByEmail(String email);
 
-    /**
-     * 편지 수신 모드가 활성화된 모든 사용자 조회
-     * @return 수신 가능 상태인 사용자 리스트
-     */
-    List<User> findAllByIsOpenTrue();
-
 //    /*
 //    본인을 제외하고 수신 설정(창문)이 활성화된 모든 유저 조회하기
 //    - 편지 랜덤 매칭의 후보군을 선정할 때 사용
 //     */
-//
     @Query(value = "SELECT u.userCode FROM User u WHERE u.inactivatedAt IS NULL ORDER BY u.userCode",
             countQuery = "SELECT COUNT(u) FROM User u WHERE u.inactivatedAt IS NULL")
     Page<String> findActiveUserCodes(Pageable pageable);
