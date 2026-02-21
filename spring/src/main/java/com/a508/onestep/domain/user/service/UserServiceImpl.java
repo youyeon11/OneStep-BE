@@ -13,6 +13,7 @@ import com.a508.onestep.domain.user.repository.SurveyRepository;
 import com.a508.onestep.domain.user.repository.UserRepository;
 import com.a508.onestep.global.auth.context.UserContextHolder;
 import com.a508.onestep.global.exception.BusinessException;
+import com.a508.onestep.global.exception.SemaphoreAcquisitionException;
 import com.a508.onestep.global.kafka.dto.KafkaMessageDto;
 import com.a508.onestep.global.kafka.dto.UserInitialJoinSet;
 import com.a508.onestep.global.kafka.producer.KafkaProducer;
@@ -25,18 +26,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final SurveyRepository surveyRepository;
-    private final PetOwnershipRepository petOwnershipRepository;
     private final KafkaProducer kafkaProducer;
+    private final Semaphore databaseSemaphore;
+
+    private final UserTransactionHelper userTransactionHelper;
 
     @Override
     @Transactional
@@ -79,32 +82,21 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
     public void registerSurvey(UserSurveyRequestDto requestDto) {
+        UserInitialJoinSet joinSet;
         String userCode = UserContextHolder.getUserCode();
-        User user = userRepository.findByUserCode(userCode)
-                .orElseThrow(() -> BusinessException.of(ErrorCode.USER_NOT_FOUND));
 
-        // DTO에서 계산된 총점을 엔티티에 반영 (엔티티가 알아서 상태 판정)
-        user.updateSurveyResult(requestDto.getTotalScore());
-        List<Integer> answerList = requestDto.getAnswers();
+        try{
+            databaseSemaphore.acquire();
+            joinSet = userTransactionHelper.executeRegisterSurvey(requestDto, userCode);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SemaphoreAcquisitionException.of("DB 접근 대기 중 인터럽트 발생", e);
+        } finally {
+            databaseSemaphore.release();
+        }
 
-        // 15개 설문 같이 저장
-        List<SurveyLog> surveyLogs = IntStream.range(0, answerList.size())
-                .mapToObj(i -> new SurveyLog(user, i + 1, answerList.get(i)))
-                .collect(Collectors.toList());
-
-        PetOwnership pet = petOwnershipRepository.findByUserId(user.getId())
-                        .orElseThrow(() -> BusinessException.of(ErrorCode.PET_NOT_FOUND));
-        String petNickname = pet.getPetNickname();
-        UserInitialJoinSet joinSet = UserInitialJoinSet.builder()
-                .userCode(userCode)
-                .recoveryLevel(user.getRecoveryLevel())
-                .petNickname(petNickname)
-                .build();
-        surveyRepository.saveAll(surveyLogs);
-
-        // DB 저장 후 전달
+        // Kafka send AFTER semaphore release and transaction
         KafkaMessageDto<UserInitialJoinSet> message = KafkaMessageDto.<UserInitialJoinSet>builder()
                 .id(UUID.randomUUID().toString())
                 .type("INITIAL_SET")
