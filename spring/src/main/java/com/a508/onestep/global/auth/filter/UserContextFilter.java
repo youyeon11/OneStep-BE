@@ -40,9 +40,6 @@ public class UserContextFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        System.out.println("URI=" + request.getRequestURI()
-                + " servletPath=" + request.getServletPath()
-                + " contextPath=" + request.getContextPath());
         return request.getServletPath().startsWith("/test")
                 || request.getServletPath().startsWith("/health")
                 || request.getServletPath().startsWith("/swagger-ui")
