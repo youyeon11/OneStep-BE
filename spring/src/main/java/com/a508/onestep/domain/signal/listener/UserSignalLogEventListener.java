@@ -1,6 +1,5 @@
 package com.a508.onestep.domain.signal.listener;
 
-import com.a508.onestep.domain.challenge.event.ChallengeCompletedEvent;
 import com.a508.onestep.domain.signal.entity.UserSignalLog;
 import com.a508.onestep.domain.signal.event.UserSignalLogEvent;
 import com.a508.onestep.domain.signal.repository.UserSignalLogRepository;
@@ -8,11 +7,11 @@ import com.a508.onestep.global.logging.utils.LogUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -28,9 +27,9 @@ public class UserSignalLogEventListener {
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     @Async("taskExecutor")
-    @EventListener
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void handleChallengeCompletedEvent(UserSignalLogEvent event) {
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional
+    public void handleUserSignalLogEvent(UserSignalLogEvent event) {
         LogUtils.info("UserSignalLog 저장 : userCode = {}, targetId = {}, eventType = {}",
                 event.getUserCode(), event.getTargetId(), event.getEventType()
         );
