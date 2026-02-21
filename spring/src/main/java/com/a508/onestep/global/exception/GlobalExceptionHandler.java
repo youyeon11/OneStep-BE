@@ -55,4 +55,10 @@ public class GlobalExceptionHandler {
         LogUtils.exceptionWithCause(e);
         return ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR);
     }
+
+    @ExceptionHandler(SemaphoreAcquisitionException.class)
+    public ResponseEntity<ErrorResponse> handleSemaphoreAcquisition(SemaphoreAcquisitionException e, HttpServletRequest request) {
+        LogUtils.warn("Semaphore acquisition failed: {} {}", e.getMessage(), request.getRequestURI());
+        return ErrorResponse.of(ErrorCode.SEMAPHORE_ACQUISITION_FAILED);
+    }
 }
