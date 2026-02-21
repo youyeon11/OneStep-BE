@@ -3,7 +3,6 @@ package com.a508.onestep.domain.challenge.repository;
 import com.a508.onestep.domain.challenge.entity.ChallengeAssignment;
 import com.a508.onestep.domain.common.AssignmentStatus;
 import com.a508.onestep.domain.common.Origin;
-import com.a508.onestep.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -11,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ChallengeAssignmentRepository extends JpaRepository<ChallengeAssignment, Long> {
@@ -57,15 +57,19 @@ public interface ChallengeAssignmentRepository extends JpaRepository<ChallengeAs
             @Param("origin") Origin origin
     );
 
-    /*
-    Tag에 대하면 있으면 수집하는 쿼리
-     */
-    @Query("""
-            SELECT cm.tags
-            FROM ChallengeAssignment ca
-            JOIN ChallengeMaster cm ON ca.challengeMasterId = cm.id
-            WHERE ca.user.id = :userId
-              AND ca.challengeMasterId IS NOT NULL
-            """)
-    List<String> findChallengeMasterTagsByUserId(@Param("userId") Long userId);
+    @Query("SELECT ca FROM ChallengeAssignment ca " +
+            "JOIN ca.user u " +
+            "WHERE u.userCode = :userCode " +
+            "AND ca.assignedDate = :assignedDate " +
+            "AND ca.origin = :origin")
+    List<ChallengeAssignment> findByUserCodeAndAssignedDateAndOrigin(
+            @Param("userCode") String userCode,
+            @Param("assignedDate") LocalDate assignedDate,
+            @Param("origin") Origin origin
+    );
+
+    @Query("SELECT ca FROM ChallengeAssignment ca " +
+            "JOIN FETCH ca.user " +
+            "WHERE ca.id = :id")
+    Optional<ChallengeAssignment> findByIdWithUser(@Param("id") Long id);
 }

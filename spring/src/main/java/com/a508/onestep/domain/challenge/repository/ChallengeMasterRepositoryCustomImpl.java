@@ -6,6 +6,7 @@ import com.a508.onestep.domain.common.TagCategory;
 import com.a508.onestep.domain.user.entity.QSurvey;
 import com.a508.onestep.domain.user.entity.QSurveyLog;
 import com.a508.onestep.domain.user.entity.User;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 
@@ -22,38 +23,36 @@ public class ChallengeMasterRepositoryCustomImpl implements ChallengeMasterRepos
     public List<ChallengeMaster> findRecommendedChallenges(
             Integer difficultyLevel, List<TagCategory> categorieList, User user
     ) {
-        QSurvey survey = QSurvey.survey;
+        // EXISTS 서브쿼리
         QSurveyLog surveyLog = QSurveyLog.surveyLog;
 
-        List<String> categoryNames = categorieList.stream()
-                .map(Enum::name)
-                .toList();
-
         boolean hasSurveyLog = jpaQueryFactory
-                .selectOne()
+                .select(Expressions.ONE)
                 .from(surveyLog)
                 .where(surveyLog.user.eq(user))
                 .fetchFirst() != null;
 
-        // surveyLog가 없을 때
+        // surveyLog 없을 때 DB에서 랜덤 정렬
         if (!hasSurveyLog) {
-            List<ChallengeMaster> results = jpaQueryFactory
+            return jpaQueryFactory
                     .selectFrom(challengeMaster)
                     .where(
                             challengeMaster.difficultyLevel.eq(difficultyLevel),
-                            challengeMaster.category.in(categoryNames)
+                            challengeMaster.category.in(categorieList)
                     )
+                    .orderBy(Expressions.numberTemplate(Double.class, "RANDOM()").asc())
+                    .limit(20)
                     .fetch();
-
-            Collections.shuffle(results);
-            return results;
         }
+
+        // surveyLog 있을 때
+        QSurvey survey = QSurvey.survey;
 
         return jpaQueryFactory
                 .select(challengeMaster)
                 .from(challengeMaster)
                 .join(survey)
-                .on(survey.category.stringValue().eq(challengeMaster.category))
+                .on(survey.category.eq(challengeMaster.category))
                 .join(surveyLog)
                 .on(
                         surveyLog.surveyNumber.eq(survey.surveyNumber),
@@ -61,10 +60,11 @@ public class ChallengeMasterRepositoryCustomImpl implements ChallengeMasterRepos
                 )
                 .where(
                         challengeMaster.difficultyLevel.eq(difficultyLevel),
-                        challengeMaster.category.in(categoryNames)
+                        challengeMaster.category.in(categorieList)
                 )
                 .groupBy(challengeMaster.id)
                 .orderBy(surveyLog.answer.sum().desc())
+                .limit(20)
                 .fetch();
     }
 }
