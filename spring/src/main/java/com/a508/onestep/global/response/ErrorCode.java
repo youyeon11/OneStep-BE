@@ -95,6 +95,9 @@ public enum ErrorCode implements BaseCode {
     // solution
     SOLUTION_NOT_FOUND(HttpStatus.NOT_FOUND.value(), "SOLUTION001", "해당 ID(PK)를 찾을 수 없습니다."),
 
+    // semaphore
+    SEMAPHORE_ACQUISITION_FAILED(HttpStatus.SERVICE_UNAVAILABLE.value(), "SEMAPHORE001", "현재 요청을 처리할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+
     // 5xx
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_SERVER_ERROR", "서버 에러입니다."),
     ;

@@ -1,15 +1,18 @@
 package com.a508.onestep.global.config;
 
 import com.a508.onestep.global.logging.utils.LogUtils;
+import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.support.TaskExecutorAdapter;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.TaskScheduler;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /*
 Executor Configuration
@@ -18,32 +21,24 @@ Executor Configuration
 @EnableAsync
 public class AsyncConfig {
 
-    private static final int CORE_POOL_SIZE = 5;
-    private static final int MAX_POOL_SIZE = 10;
-    private static final int QUEUE_CAPACITY = 50;
-
-    private static final int SCHEDULER_MAX_POOL_SIZE = 5;
-    private static final int BATCH_MAX_POOL_SIZE = 20;
+    private ExecutorService taskExecutorService;
+    private ExecutorService batchExecutorService;
 
     /*
      * 일반 비동기 Executor
      */
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(CORE_POOL_SIZE);
-        executor.setMaxPoolSize(MAX_POOL_SIZE);
-        executor.setQueueCapacity(QUEUE_CAPACITY);
-        executor.setThreadNamePrefix("task-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(30);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
+        taskExecutorService = Executors.newVirtualThreadPerTaskExecutor();
 
-        LogUtils.info("Task Executor 초기화 완료 - core: {}, max: {}, queue: {}",
-                CORE_POOL_SIZE, MAX_POOL_SIZE, QUEUE_CAPACITY);
+        TaskExecutorAdapter adapter = new TaskExecutorAdapter(taskExecutorService);
+        adapter.setTaskDecorator(task -> () -> {
+            Thread.currentThread().setName("task-" + Thread.currentThread().threadId());
+            task.run();
+        });
+        LogUtils.info("Task Executor 초기화 완료 - Virtual Thread");
 
-        return executor;
+        return adapter;
     }
 
     /*
@@ -51,17 +46,16 @@ public class AsyncConfig {
      */
     @Bean(name = "taskScheduler")
     public TaskScheduler taskScheduler() {
-        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(SCHEDULER_MAX_POOL_SIZE);
+        SimpleAsyncTaskScheduler scheduler = new SimpleAsyncTaskScheduler();
+        scheduler.setVirtualThreads(true);
         scheduler.setThreadNamePrefix("scheduler-");
-        scheduler.setWaitForTasksToCompleteOnShutdown(true);
-        scheduler.setAwaitTerminationSeconds(30);
-        scheduler.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-        scheduler.setErrorHandler(t -> LogUtils.error("Scheduler error: {}", t.getMessage()));
-        scheduler.initialize();
+        scheduler.setTaskTerminationTimeout(30);
 
-        LogUtils.info("TaskScheduler 초기화 완료 - poolSize: {}",
-                SCHEDULER_MAX_POOL_SIZE);
+        scheduler.setErrorHandler(t ->
+                LogUtils.error("Scheduler error: {}", t.getMessage(), t)
+        );
+
+        LogUtils.info("TaskScheduler 초기화 완료 - Virtual Thread");
 
         return scheduler;
     }
@@ -71,19 +65,40 @@ public class AsyncConfig {
      */
     @Bean(name = "batchExecutor")
     public Executor batchExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(CORE_POOL_SIZE);
-        executor.setMaxPoolSize(BATCH_MAX_POOL_SIZE);
-        executor.setQueueCapacity(200);
-        executor.setThreadNamePrefix("batch-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(120);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
+        batchExecutorService = Executors.newVirtualThreadPerTaskExecutor();
 
-        LogUtils.info("Batch Executor 초기화 완료 - core: {}, max: {}",
-                CORE_POOL_SIZE, BATCH_MAX_POOL_SIZE);
+        TaskExecutorAdapter adapter = new TaskExecutorAdapter(batchExecutorService);
+        adapter.setTaskDecorator(task -> () -> {
+            Thread.currentThread().setName("batch-" + Thread.currentThread().threadId());
+            task.run();
+        });
 
-        return executor;
+        LogUtils.info("Batch Executor 초기화 완료 - Virtual Thread");
+
+        return adapter;
+    }
+
+    /*
+     * Graceful shutdown
+     */
+    @PreDestroy
+    public void shutdown() {
+        LogUtils.info("Executors shutting down...");
+        shutdownExecutor(taskExecutorService, "taskExecutor");
+        shutdownExecutor(batchExecutorService, "batchExecutor");
+    }
+
+    private void shutdownExecutor(ExecutorService executor, String name) {
+        if (executor == null) return;
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                LogUtils.warn("{} did not terminate in time, forcing shutdown", name);
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            executor.shutdownNow();
+        }
     }
 }

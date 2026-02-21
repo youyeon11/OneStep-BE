@@ -2,9 +2,6 @@ package com.a508.onestep.global.auth.service;
 
 import com.a508.onestep.domain.common.RoleType;
 import com.a508.onestep.domain.common.UserStatus;
-import com.a508.onestep.domain.pet.entity.PetOwnership;
-import com.a508.onestep.domain.pet.repository.PetOwnershipRepository;
-import com.a508.onestep.domain.pet.util.PetLevelCalculator;
 import com.a508.onestep.domain.user.entity.User;
 import com.a508.onestep.domain.user.repository.UserRepository;
 import com.a508.onestep.global.auth.context.UserContextHolder;
@@ -14,18 +11,16 @@ import com.a508.onestep.global.auth.dto.response.LoginResponseDto;
 import com.a508.onestep.global.exception.BusinessException;
 import com.a508.onestep.global.client.kakao.KakaoApiClient;
 import com.a508.onestep.global.client.kakao.dto.KakaoUserInfoResponseDto;
-import com.a508.onestep.global.kafka.producer.KafkaProducer;
 import com.a508.onestep.global.response.ErrorCode;
 import com.a508.onestep.global.auth.utils.JwtUtils;
 import com.a508.onestep.global.logging.utils.LogUtils;
-import com.a508.onestep.global.auth.utils.UserCodeGenerator;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -36,11 +31,12 @@ public class AuthServiceImpl implements AuthService {
     private long refreshTokenExpirationTime;
 
     private final UserRepository userRepository;
-    private final PetOwnershipRepository petOwnershipRepository;
     private final JwtUtils jwtUtils;
     private final RedisTemplate<String, String> redisTemplate;
     private final KakaoApiClient kakaoApiClient;
-    private final KafkaProducer kafkaProducer;
+    private final Semaphore databaseSemaphore;
+
+    private final AuthTransactionHelper authTransactionHelper;
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh_token:";
 
@@ -48,145 +44,82 @@ public class AuthServiceImpl implements AuthService {
      * 카카오 로그인하기
      * 안드로이드 앱에서 카카오 OAuth 토큰을 받아 로그인/회원가입 처리
      */
-    @Transactional
     public LoginResponseDto kakaoLogin(KakaoLoginRequestDto requestDto) {
+        // Kakao API call OUTSIDE transaction
         LogUtils.info("카카오 사용자 정보 요청");
         KakaoUserInfoResponseDto userInfo = kakaoApiClient.requestUserInfo(requestDto.getKakaoToken());
         LogUtils.info("카카오 사용자 정보 : {}", userInfo);
 
-        // userInfo 검증
         if (userInfo == null || userInfo.getKakaoAccount().getEmail() == null) {
             throw BusinessException.of(ErrorCode.KAKAO_USER_INFO_FAILED);
         }
 
         String email = userInfo.getKakaoAccount().getEmail();
-        Optional<User> existingUser = userRepository.findByEmail(email);
 
-        final User user;
-        final boolean isNew;
+        // DB work in short transaction via helper (with semaphore protection)
+        try {
+            databaseSemaphore.acquire();
 
-        if (existingUser.isPresent()) {
-            user = existingUser.get();
-            // pet 존재 유무로 신규 여부 판단
-            isNew = !petOwnershipRepository.existsByUserId(user.getId());
+            AuthTransactionHelper.KakaoLoginResult result = authTransactionHelper.executeKakaoLogin(email);
 
-            LogUtils.info("카카오 기존 회원 로그인: userCode={}, email={}",
-                    user.getUserCode(), user.getEmail());
-        } else {
-            // 신규 회원 - User와 Pet을 함께 생성
-            String userCode = UserCodeGenerator.generate();
+            // JWT 토큰 생성 (outside transaction)
+            String accessToken = jwtUtils.generateAccessToken(
+                    result.getUserCode(), RoleType.ROLE_USER.name());
+            String refreshToken = jwtUtils.generateRefreshToken(
+                    result.getUserCode(), RoleType.ROLE_USER.name());
 
-            user = User.builder()
-                    .userCode(userCode)
-                    .email(email)
-                    .nickname("김싸피")
-                    .recoveryLevel(1)
-                    .totalExp(0)
-                    .userStatus(UserStatus.ACTIVE)
-                    .termsAgree(true)
-                    .gpsOptIn(false)
-                    .notifOptIn(false)
+            saveRefreshToken(result.getUserCode(), refreshToken);
+
+            return LoginResponseDto.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
+                    .isNew(result.isNew())
                     .build();
-
-            // Pet 생성
-            PetOwnership pet = PetOwnership.builder()
-                    .currentExp(0)
-                    .petLevel(1)
-                    .isMain(true)
-                    .user(user)
-                    .maxExp(PetLevelCalculator.getMaxExpForLevel(1))
-                    .build();
-
-            userRepository.save(user);
-            petOwnershipRepository.save(pet);
-
-            isNew = true;
-            LogUtils.info("카카오 신규 회원가입: userCode={}, email={}", userCode, email);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("DB 접근 대기 중 인터럽트 발생", e);
+        } finally {
+            databaseSemaphore.release();
         }
-
-        // JWT 토큰 생성
-        String accessToken = jwtUtils.generateAccessToken(
-                user.getUserCode(), RoleType.ROLE_USER.name());
-        String refreshToken = jwtUtils.generateRefreshToken(
-                user.getUserCode(), RoleType.ROLE_USER.name());
-
-        saveRefreshToken(user.getUserCode(), refreshToken);
-
-        return LoginResponseDto.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .isNew(isNew)
-                .build();
     }
 
     /**
      * 게스트 로그인하기
      * 임시 계정으로 앱 사용 (닉네임만 입력)
      */
-    @Transactional
+    @Override
     public LoginResponseDto guestLogin(LoginRequestDto requestDto) {
         String userCode = requestDto.getUserCode();
+        try {
+            databaseSemaphore.acquire();
 
-        Optional<User> existingUser = userRepository.findByUserCode(userCode);
+            boolean isNew;
+            isNew = authTransactionHelper.executeGuestLogin(userCode);
 
-        final User user;
-        final boolean isNew;
+            // JWT 토큰 생성
+            String accessToken = jwtUtils.generateAccessToken(userCode, RoleType.ROLE_USER.name());
+            String refreshToken = jwtUtils.generateRefreshToken(userCode, RoleType.ROLE_USER.name());
 
-        if (existingUser.isPresent()) {
-            user = existingUser.get();
-            isNew = !petOwnershipRepository.existsByUserId(user.getId());
+            // Redis에 Refresh Token 저장
+            saveRefreshToken(userCode, refreshToken);
 
-            LogUtils.info("게스트 기존 회원 재로그인: userCode={}", userCode);
-        } else {
-            // 신규 게스트 - User 생성
-            user = User.builder()
-                    .userCode(userCode)
-                    .nickname("김싸피")
-                    .recoveryLevel(1)
-                    .totalExp(0)
-                    .userStatus(UserStatus.ACTIVE)
-                    .termsAgree(true)
-                    .gpsOptIn(false)
-                    .notifOptIn(false)
+            return LoginResponseDto.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
+                    .isNew(isNew)
                     .build();
-
-            // User 저장
-            userRepository.save(user);
-
-            // Pet 생성 및 저장
-            PetOwnership pet = PetOwnership.builder()
-                    .currentExp(0)
-                    .petLevel(1)
-                    .isMain(true)
-                    .maxExp(PetLevelCalculator.getMaxExpForLevel(1))
-                    .user(user)
-                    .build();
-
-            petOwnershipRepository.save(pet);
-
-            isNew = true;
-            LogUtils.info("게스트 신규 회원가입: userCode={}", userCode);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("DB 접근 대기 중 인터럽트 발생", e);
+        } finally {
+            databaseSemaphore.release();
         }
-
-        // JWT 토큰 생성
-        String accessToken = jwtUtils.generateAccessToken(userCode, RoleType.ROLE_USER.name());
-        String refreshToken = jwtUtils.generateRefreshToken(userCode, RoleType.ROLE_USER.name());
-
-        // Redis에 Refresh Token 저장
-        saveRefreshToken(userCode, refreshToken);
-
-        return LoginResponseDto.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .isNew(isNew)
-                .build();
     }
 
     /**
      * 로그아웃하기
      * Redis에서 Refresh Token 삭제
      */
-    @Transactional
     public void logout() {
         String userCode = UserContextHolder.getUserCode();
         String key = REFRESH_TOKEN_PREFIX + userCode;
@@ -203,7 +136,7 @@ public class AuthServiceImpl implements AuthService {
      * 토큰 재발급하기
      * Refresh Token으로 새로운 Access Token 발급
      */
-    @Transactional
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public LoginResponseDto reissue(String refreshToken) {
 
         // Refresh Token 유효성 검증
@@ -266,15 +199,11 @@ public class AuthServiceImpl implements AuthService {
     /**
      * 기존의 회원을 kakao 계정과 연동
      */
-    @Transactional
     public void linkToKakao(KakaoLoginRequestDto requestDto) {
         String userCode = UserContextHolder.getUserCode();
         LogUtils.info("{} 의 카카오톡 연동 시작...", userCode);
 
-        User user = userRepository.findByUserCode(userCode)
-                .orElseThrow(() -> BusinessException.of(ErrorCode.USER_NOT_FOUND));
-
-        // 회원 카카오 계정 얻기
+        // Kakao API call OUTSIDE transaction
         KakaoUserInfoResponseDto userInfoResponseDto = kakaoApiClient.requestUserInfo(requestDto.getKakaoToken());
         String email = userInfoResponseDto.getKakaoAccount().getEmail();
         if (email == null) {
@@ -282,11 +211,8 @@ public class AuthServiceImpl implements AuthService {
             throw BusinessException.of(ErrorCode.KAKAO_USER_INFO_FAILED);
         }
 
-        if (user.getEmail() != null) {
-            LogUtils.warn("이미 회원의 이메일이 존재합니다. : {}", user.getEmail());
-            throw BusinessException.of(ErrorCode.EMAIL_ALREADY_EXISTS);
-        }
-        user.updateInfo(email);
+        // DB update in short transaction via helper
+        authTransactionHelper.executeLinkToKakao(userCode, email);
     }
 
     /**
