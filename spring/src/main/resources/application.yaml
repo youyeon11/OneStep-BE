@@ -11,6 +11,9 @@ spring:
       on-profile:
         - "dev"
         - "local"
+  threads:
+    virtual:
+      enabled: true
 
   jpa:
     hibernate:
