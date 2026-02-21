@@ -65,13 +65,11 @@ public class LoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        System.out.println("URI=" + request.getRequestURI()
-                + " servletPath=" + request.getServletPath()
-                + " contextPath=" + request.getContextPath());
         return request.getServletPath().startsWith("/swagger-ui")
                 || request.getServletPath().startsWith("/test")
                 || request.getServletPath().startsWith("/swagger-ui.html")
-                || request.getServletPath().startsWith("/v3/api-docs");
+                || request.getServletPath().startsWith("/v3/api-docs")
+                || request.getServletPath().startsWith("/actuator/prometheus");
     }
 
         /*
