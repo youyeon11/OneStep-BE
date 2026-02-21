@@ -6,7 +6,7 @@ export const options = {
     insecureSkipTLSVerify: true, // SSL 인증서 무시 (Ignore SSL certificate errors)
 
     stages: [
-        { duration: '10m', target: 500 },
+        { duration: '10m', target: 1000 },
     ],
 };
 

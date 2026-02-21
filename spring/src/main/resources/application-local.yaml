@@ -28,11 +28,11 @@ spring:
       password: ${LOCAL_REDIS_PASSWORD}
 
     mongodb:
-      host: ${MONGO_HOST}
-      port: ${MONGO_PORT}
-      database: ${MONGO_DB_NAME}
-      username: ${MONGO_USERNAME}
-      password: ${MONGO_PASSWORD}
+      host: ${LOCAL_MONGO_HOST}
+      port: ${LOCAL_MONGO_PORT}
+      database: ${LOCAL_MONGO_DB_NAME}
+      username: ${LOCAL_MONGO_USERNAME}
+      password: ${LOCAL_MONGO_PASSWORD}
       authentication-database: admin
 
   kafka:
