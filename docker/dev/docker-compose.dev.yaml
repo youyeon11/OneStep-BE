@@ -126,3 +126,5 @@ volumes:
 networks:
   onestep-network:
     driver: bridge
+  monitoring:
+    driver: bridge
