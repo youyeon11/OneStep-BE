@@ -121,11 +121,44 @@ services:
     networks:
       - monitoring
 
+  pmm-server:
+    image: percona/pmm-server:2
+    container_name: pmm-server
+    restart: unless-stopped
+    ports:
+      - "4443:443"
+      - "8090:80"
+    volumes:
+      - pmm-data:/srv
+    networks:
+      - monitoring
+
+  pmm-client:
+    image: percona/pmm-client:2
+    container_name: pmm-client
+    restart: unless-stopped
+    depends_on:
+      - pmm-server
+    environment:
+      PMM_AGENT_SERVER_ADDRESS: pmm-server:443
+      PMM_AGENT_SERVER_USERNAME: admin
+      PMM_AGENT_SERVER_PASSWORD: admin
+      PMM_AGENT_SERVER_INSECURE_TLS: "1"
+      PMM_AGENT_SETUP: "1"
+      PMM_AGENT_SETUP_FORCE: "1"
+      PMM_AGENT_CONFIG_FILE: pmm-agent.yaml
+    volumes:
+      - pmm-client-data:/usr/local/percona/pmm2
+    networks:
+      - monitoring
+
 volumes:
   prometheus_data:
   grafana_data:
   loki_data:
   influxdb:
+  pmm-data:
+  pmm-client-data:
 
 networks:
   monitoring:

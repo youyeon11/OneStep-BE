@@ -12,6 +12,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - monitoring
 
   redis:
     image: redis:7.4.1
@@ -72,6 +74,8 @@ services:
     volumes:
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
       - mongodb_data:/data/db
+    networks:
+      - monitoring
 
   mongo-express:
     image: mongo-express:latest
@@ -95,4 +99,6 @@ volumes:
 
 networks:
   kafka-net:
+    driver: bridge
+  monitoring:
     driver: bridge
