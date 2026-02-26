@@ -4,8 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
 @Component
 @Slf4j
@@ -16,22 +14,6 @@ public class LogUtils {
      */
     public static String exception(Throwable e) {
         return e == null ? "" : e.getMessage();
-    }
-
-    public static String exceptionWithCause(Throwable e) {
-        if (e == null) return "";
-
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        e.printStackTrace(pw);
-
-        Throwable cause = e.getCause();
-        while (cause != null) {
-            pw.println("Caused by:");
-            cause.printStackTrace(pw);
-            cause = cause.getCause();
-        }
-        return sw.toString();
     }
 
     /*
@@ -72,6 +54,6 @@ public class LogUtils {
             return;
         }
         log.error(">>> Request URI : [{}] {}", request.getMethod(), request.getRequestURI());
-        log.error(">>> Exception : {}", exceptionWithCause(e), e);
+        log.error(">>> Exception : {}", exception(e), e);
     }
 }
