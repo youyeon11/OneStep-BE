@@ -16,14 +16,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e, HttpServletRequest request) {
-        LogUtils.error("Business Exception: {}", request);
-        LogUtils.exceptionWithCause(e);
+        LogUtils.error(e, request);
         return ErrorResponse.of(e.getBaseCode());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException e, HttpServletRequest request) {
-        LogUtils.error("Resource Not Found", request);
         String path = request.getRequestURI();
 
         // Swagger 관련 경로는 Spring이 기본 처리하도록 예외를 다시 던짐
@@ -33,7 +31,7 @@ public class GlobalExceptionHandler {
             throw e;
         }
 
-        LogUtils.exceptionWithCause(e);
+        LogUtils.error(e, request);
         return ErrorResponse.of(ErrorCode.RESOURCE_NOT_FOUND);
     }
 
@@ -51,8 +49,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e, HttpServletRequest request) {
-        LogUtils.error("Unhandled exception", request);
-        LogUtils.exceptionWithCause(e);
+        LogUtils.error(e, request);
         return ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
