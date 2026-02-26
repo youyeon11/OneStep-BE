@@ -1,6 +1,8 @@
 package com.a508.onestep.global.logging.filter;
 
 import com.a508.onestep.global.logging.utils.LogUtils;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
@@ -15,15 +17,11 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Optional;
-import java.util.UUID;
 
 @Component
 public class LoggingFilter extends OncePerRequestFilter {
-
-    public static final String HEADER_REQUEST_ID = "X-Request-ID";
-    public static final String MDC_REQUEST_ID = "requestID";
-
 
 
     @Override
@@ -34,31 +32,47 @@ public class LoggingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        String requestId = Optional.ofNullable(request.getHeader(HEADER_REQUEST_ID))
-                .filter(s -> !s.isBlank())
-                .orElse(UUID.randomUUID().toString());
+        Long start = System.currentTimeMillis();
 
-        long start = System.currentTimeMillis();
-
-        // MDC
-        MDC.put(MDC_REQUEST_ID, requestId);
-        response.setHeader(HEADER_REQUEST_ID, requestId);
+        // BusinessContext
+        MDC.put("requestMethod", request.getMethod());
+        MDC.put("requestPath", request.getRequestURI());
+        MDC.put("clientIp", getClientIp(request));
+        MDC.put("userAgent", Optional.ofNullable(request.getHeader("User-Agent")).orElse("-"));
+        MDC.put("userId", extractUserId(request));
 
         ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request);
         ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
 
+        // log
         try {
-            // Log
-            logRequest(requestWrapper, requestId);
+            logRequest(requestWrapper);
             filterChain.doFilter(requestWrapper, responseWrapper);
-        } catch (Exception ex) {
-            // Error
-            LogUtils.error(ex, requestWrapper);
+        } catch (Exception e) {
+            MDC.put("errorType", e.getClass().getSimpleName());
+            MDC.put("errorMessage", e.getMessage());
+            LogUtils.error(e, requestWrapper);
+            throw e;
         } finally {
-            logResponse(responseWrapper, start, requestId);
-            // response 바디를 실제로 내보내기
+            Long tookMs = System.currentTimeMillis() - start;
+
+            // Json
+            MDC.put("responseStatus", String.valueOf(responseWrapper.getStatus()));
+            MDC.put("duration_ms", String.valueOf(tookMs));
+
+            logResponse(responseWrapper, tookMs);
             responseWrapper.copyBodyToResponse();
-            MDC.remove(MDC_REQUEST_ID);
+
+            // MDC 비우기
+            MDC.remove("requestMethod");
+            MDC.remove("requestPath");
+            MDC.remove("clientIp");
+            MDC.remove("userAgent");
+            MDC.remove("userId");
+            MDC.remove("responseStatus");
+            MDC.remove("duration_ms");
+            MDC.remove("errorType");
+            MDC.remove("errorMessage");
         }
 
     }
@@ -75,38 +89,73 @@ public class LoggingFilter extends OncePerRequestFilter {
         /*
      Request 기록
      */
-    private void logRequest(HttpServletRequest request, String requestId) {
+    private void logRequest(HttpServletRequest request) {
         String method = request.getMethod();
         String uri = request.getRequestURI();
         String query = request.getQueryString();
 
         LogUtils.info(
-                "[REQ] id={} {} {}{}",
-                requestId, method, uri, (query != null ? query : "")
+                "[REQ] {} {}{}", method, uri, (query != null ? query : "")
         );
     }
 
     /*
     Response 콘솔 로그
      */
-    private void logResponse(ContentCachingResponseWrapper responseWrapper, long start, String requestId) throws IOException {
+    private void logResponse(ContentCachingResponseWrapper responseWrapper, long tookMs) {
 
-        long tookMs = System.currentTimeMillis() - start;
-        int status = responseWrapper.getStatus(); // HTTP STATUS
+        LogUtils.info("[RES] status={} took={}ms", responseWrapper.getStatus(), tookMs);
 
         byte[] body = responseWrapper.getContentAsByteArray();
-        StringBuilder bodyStringBuilder = new StringBuilder();
-        String bodyString = "";
-        if ( body != null && body.length > 0) {
-            bodyString = bodyStringBuilder.append(new String(body, StandardCharsets.UTF_8)).toString();
-            if (bodyString.length() > 2000) {
-                bodyString = bodyString.substring(0, 2000) + "...(omission)";
+        if (logger.isDebugEnabled()) {
+            if (body.length > 0) {
+                String bodyString = new String(body, StandardCharsets.UTF_8);
+                if (bodyString.length() > 2000) {
+                    bodyString = bodyString.substring(0, 2000) + "...(omission)";
+                }
+                LogUtils.debug("[RES-BODY] {}", bodyString);
             }
         }
-        LogUtils.info("[RES] id={} status={} took={}", requestId, status, tookMs);
-        LogUtils.debug("[RES-BODY] {}", bodyString);
+    }
 
-        // response 바디를 실제로 내보내기
-        responseWrapper.copyBodyToResponse();
+
+    /*
+    JWT에서 userId 추출
+     */
+    private String extractUserId(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String[] parts = authHeader.substring(7).split("\\.");
+                String userCode = "";
+
+                if (parts.length == 3) {
+                    String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+                    // payload
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        JsonNode node = mapper.readTree(payload);
+                        userCode = node.has("sub") ? node.get("sub").asText() : "anonymous";
+                    } catch (Exception e) {
+                        return "anonymous";
+                    }
+                    return userCode;
+                }
+            } catch (Exception e) {
+                return "anonymous";
+            }
+        }
+        return "anonymous";
+    }
+
+    /*
+    Client의 IP를 추출
+     */
+    private String getClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
