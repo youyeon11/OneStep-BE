@@ -71,6 +71,12 @@ management:
   metrics:
     tags:
       application: onestep-api
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://tempo:4318/v1/traces
 
 openapi:
   base-url: http://${SERVER_IP}:8080
