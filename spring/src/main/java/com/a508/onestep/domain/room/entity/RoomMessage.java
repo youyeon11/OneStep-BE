@@ -1,6 +1,6 @@
 package com.a508.onestep.domain.room.entity;
 
-import com.a508.onestep.domain.common.MessageRoleType;
+import com.a508.onestep.domain.common.ChatEventType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -29,7 +29,7 @@ public class RoomMessage {
 
     @Column(name = "message_role_type", length = 20)
     @Enumerated(EnumType.STRING)
-    private MessageRoleType messageRoleType;
+    private ChatEventType messageRoleType;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

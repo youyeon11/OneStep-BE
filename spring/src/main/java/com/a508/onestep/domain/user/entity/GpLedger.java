@@ -1,6 +1,8 @@
 package com.a508.onestep.domain.user.entity;
 
 import com.a508.onestep.domain.common.BaseTimeEntity;
+import com.a508.onestep.domain.common.GpReason;
+import com.a508.onestep.domain.common.Origin;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,15 +19,28 @@ public class GpLedger extends BaseTimeEntity {
     private Long id;
 
     @Column(nullable = false)
-    private String reason;
+    @Enumerated(EnumType.STRING)
+    private GpReason reason;
 
     @Column(name = "ref_type")
-    private String refType;
+    @Enumerated(EnumType.STRING)
+    private Origin refType; // 챌린지 할당의 출처
 
     @Column(name = "ref_id")
     private Long refId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
-    private User user;
+    @Column(name = "user_code")
+    private String userCode;
+
+    /*
+    GpLedger 생성자
+     */
+    public static GpLedger challengeCompleteReward(String userCode, Long assignmentId, Origin refType) {
+        GpLedger ledger = new GpLedger();
+        ledger.reason = GpReason.CHALLENGE_COMPLETE_REWARD;
+        ledger.refType = refType;
+        ledger.refId = assignmentId;
+        ledger.userCode = userCode;
+        return ledger;
+    }
 }

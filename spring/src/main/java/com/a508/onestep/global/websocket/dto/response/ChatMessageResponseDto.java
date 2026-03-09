@@ -1,6 +1,6 @@
 package com.a508.onestep.global.websocket.dto.response;
 
-import com.a508.onestep.domain.common.MessageRoleType;
+import com.a508.onestep.domain.common.ChatEventType;
 import com.a508.onestep.global.websocket.dto.RoomParticipant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,7 +25,7 @@ public class ChatMessageResponseDto {
     private String senderCode;
     private String content;
     private LocalDateTime timestamp;
-    private MessageRoleType messageRoleType;
+    private ChatEventType messageRoleType;
     private Integer durationTime;
     private List<RoomParticipant> participants;
     private LocalDateTime expiresAt;
