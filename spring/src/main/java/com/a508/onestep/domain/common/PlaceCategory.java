@@ -3,6 +3,9 @@ package com.a508.onestep.domain.common;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * 카카오 로컬 API 장소 카테고리
+ */
 @Getter
 @RequiredArgsConstructor
 public enum PlaceCategory {

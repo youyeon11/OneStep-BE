@@ -1,6 +1,6 @@
 package com.a508.onestep.global.websocket.dto.request;
 
-import com.a508.onestep.domain.common.MessageRoleType;
+import com.a508.onestep.domain.common.ChatEventType;
 import lombok.*;
 
 @Getter
@@ -11,5 +11,5 @@ public class RoomMessageRequestDto {
     private Long roomId;
     private String senderCode;
     private String content;
-    private MessageRoleType messageRoleType;
+    private ChatEventType messageRoleType;
 }

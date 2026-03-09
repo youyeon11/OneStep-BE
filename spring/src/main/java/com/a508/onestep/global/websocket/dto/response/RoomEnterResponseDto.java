@@ -1,6 +1,6 @@
 package com.a508.onestep.global.websocket.dto.response;
 
-import com.a508.onestep.domain.common.RoomEventType;
+import com.a508.onestep.domain.common.ChatEventType;
 import com.a508.onestep.domain.room.entity.Room;
 import com.a508.onestep.global.websocket.dto.RoomParticipant;
 import com.a508.onestep.global.websocket.dto.RoomSession;
@@ -40,7 +40,7 @@ public class RoomEnterResponseDto {
                 .participants(new ArrayList<>(roomSession.getParticipants()))
                 .expiresAt(roomSession.getSessionExpiresAt())
                 .userCode(userCode)
-                .eventType(RoomEventType.ENTER.name())
+                .eventType(ChatEventType.ENTER.name())
                 .timestamp(now)
                 .remainingTime(Math.max(0L, remainingMillis))
                 .build();

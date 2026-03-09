@@ -1,6 +1,6 @@
 package com.a508.onestep.global.websocket.event;
 
-import com.a508.onestep.domain.common.RoomEventType;
+import com.a508.onestep.domain.common.ChatEventType;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,14 +13,14 @@ import java.time.LocalDateTime;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class RoomEvent {
 
-    private final RoomEventType eventType;
+    private final ChatEventType eventType;
     private final Long roomId;
     private final String userCode;
     private final LocalDateTime timestamp;
 
     public static RoomEvent enter(String userCode, Long roomId) {
         return RoomEvent.builder()
-                .eventType(RoomEventType.ENTER)
+                .eventType(ChatEventType.ENTER)
                 .roomId(roomId)
                 .userCode(userCode)
                 .timestamp(LocalDateTime.now())
@@ -29,7 +29,7 @@ public class RoomEvent {
 
     public static RoomEvent exit(String userCode, Long roomId) {
         return RoomEvent.builder()
-                .eventType(RoomEventType.EXIT)
+                .eventType(ChatEventType.EXIT)
                 .roomId(roomId)
                 .userCode(userCode)
                 .timestamp(LocalDateTime.now())
@@ -37,10 +37,10 @@ public class RoomEvent {
     }
 
     public boolean isEnter() {
-        return eventType == RoomEventType.ENTER;
+        return eventType == ChatEventType.ENTER;
     }
 
     public boolean isExit() {
-        return eventType == RoomEventType.EXIT;
+        return eventType == ChatEventType.EXIT;
     }
 }

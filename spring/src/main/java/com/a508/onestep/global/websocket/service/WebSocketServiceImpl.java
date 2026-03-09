@@ -1,6 +1,6 @@
 package com.a508.onestep.global.websocket.service;
 
-import com.a508.onestep.domain.common.MessageRoleType;
+import com.a508.onestep.domain.common.ChatEventType;
 import com.a508.onestep.domain.room.entity.Room;
 import com.a508.onestep.domain.room.repository.RoomRepository;
 import com.a508.onestep.domain.room.service.RoomService;
@@ -102,7 +102,7 @@ public class WebSocketServiceImpl implements WebSocketService {
                 .senderCode(null)
                 .content(enterMessage)
                 .timestamp(now)
-                .messageRoleType(MessageRoleType.ENTER)
+                .messageRoleType(ChatEventType.ENTER)
                 .durationTime(room.getDurationTime())
                 .participants(new ArrayList<>(roomSession.getParticipants()))
                 .expiresAt(roomSession.getSessionExpiresAt())
@@ -150,7 +150,7 @@ public class WebSocketServiceImpl implements WebSocketService {
                     .senderCode(null)
                     .content(exitMessage)
                     .timestamp(now)
-                    .messageRoleType(MessageRoleType.EXIT)
+                    .messageRoleType(ChatEventType.EXIT)
                     .participants(new ArrayList<>(updatedSession.getParticipants()))
                     .expiresAt(updatedSession.getSessionExpiresAt())
                     .remainingTime(Math.max(0L, remainingMillis))
@@ -191,7 +191,7 @@ public class WebSocketServiceImpl implements WebSocketService {
                 .topic(room.getTopic())
                 .senderCode(userCode)
                 .content(request.getContent())
-                .messageRoleType(MessageRoleType.TEXT)
+                .messageRoleType(ChatEventType.TEXT)
                 .timestamp(now)
                 .durationTime(room.getDurationTime())
                 .participants(new ArrayList<>(roomSession.getParticipants()))
@@ -278,7 +278,7 @@ public class WebSocketServiceImpl implements WebSocketService {
                 .senderCode(null)
                 .content(message)
                 .timestamp(now)
-                .messageRoleType(MessageRoleType.TIMER)
+                .messageRoleType(ChatEventType.TIMER)
                 .durationTime(room.getDurationTime())
                 .participants(new ArrayList<>(roomSession.getParticipants()))
                 .expiresAt(roomSession.getSessionExpiresAt())

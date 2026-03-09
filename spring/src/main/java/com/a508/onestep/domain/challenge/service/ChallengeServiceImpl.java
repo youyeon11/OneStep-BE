@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 import com.a508.onestep.global.exception.BusinessException;
+import com.a508.onestep.global.exception.SemaphoreAcquisitionException;
 import com.a508.onestep.global.response.ErrorCode;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,11 +43,16 @@ public class ChallengeServiceImpl implements ChallengeService {
     @Override
     public ChallengeResponseDto register(ChallengeRequestDto requestDto) {
         String userCode = UserContextHolder.getUserCode();
-        databaseSemaphore.acquireUninterruptibly();
+        boolean acquired = false;
         try {
+            databaseSemaphore.acquire();
+            acquired = true;
             return transactionHelper.register(userCode, requestDto);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SemaphoreAcquisitionException.of("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
     }
 
@@ -72,11 +78,16 @@ public class ChallengeServiceImpl implements ChallengeService {
     @Override
     public ChallengeCompleteResponseDto complete(ChallengeCompleteRequestDto requestDto) {
         String userCode = UserContextHolder.getUserCode();
-        databaseSemaphore.acquireUninterruptibly();
+        boolean acquired = false;
         try {
+            databaseSemaphore.acquire();
+            acquired = true;
             return transactionHelper.complete(userCode, requestDto);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SemaphoreAcquisitionException.of("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
     }
 
@@ -105,22 +116,32 @@ public class ChallengeServiceImpl implements ChallengeService {
     @Override
     public List<ChallengeResponseDto> selectInitialChallenges(List<ChallengeRequestDto> requestDto) {
         String userCode = UserContextHolder.getUserCode();
-        databaseSemaphore.acquireUninterruptibly();
+        boolean acquired = false;
         try {
+            databaseSemaphore.acquire();
+            acquired = true;
             return transactionHelper.selectInitialChallenges(userCode, requestDto);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SemaphoreAcquisitionException.of("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
     }
 
     @Override
     public List<ChallengeResponseDto> getChallenge() {
         String userCode = UserContextHolder.getUserCode();
-        databaseSemaphore.acquireUninterruptibly();
+        boolean acquired = false;
         try {
+            databaseSemaphore.acquire();
+            acquired = true;
             return transactionHelper.getChallenge(userCode);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SemaphoreAcquisitionException.of("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
     }
 }

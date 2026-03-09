@@ -1,7 +1,7 @@
 package com.a508.onestep.global.websocket.dto.response;
 
 
-import com.a508.onestep.domain.common.MessageRoleType;
+import com.a508.onestep.domain.common.ChatEventType;
 import com.a508.onestep.domain.room.entity.Room;
 import com.a508.onestep.global.websocket.dto.RoomSession;
 import lombok.*;
@@ -23,7 +23,7 @@ public class RoomExitResponseDto {
         return RoomExitResponseDto.builder()
                 .roomId(room.getId())
                 .userCode(userCode)
-                .eventType(MessageRoleType.EXIT.name())
+                .eventType(ChatEventType.EXIT.name())
                 .timestamp(LocalDateTime.now())
                 .remainingCount(roomSession.getCurrentCount())
                 .build();

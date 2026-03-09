@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /*
 Kafka 전송 로직
@@ -18,6 +20,8 @@ Kafka 전송 로직
 @RequiredArgsConstructor
 @Component
 public class KafkaProducerImpl implements KafkaProducer {
+
+    private static final long KAFKA_SEND_TIMEOUT_SECONDS = 10;
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -27,10 +31,13 @@ public class KafkaProducerImpl implements KafkaProducer {
     @Override
     public <T> void send(String topic, String key, KafkaMessageDto<T> messageDto) {
         try {
-            // 동기 방식
-            kafkaTemplate.send(topic, key, messageDto).get();
+            kafkaTemplate.send(topic, key, messageDto).get(KAFKA_SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             LogUtils.debug("Message sent successfully to topic: {}, key: {}, messageId: {}",
                     topic, key, messageDto.getId());
+        } catch (TimeoutException e) {
+            LogUtils.error("Kafka send timed out after {}s, topic: {}, key: {}, messageId: {}",
+                    KAFKA_SEND_TIMEOUT_SECONDS, topic, key, messageDto.getId(), e);
+            throw BusinessException.of(ErrorCode.KAFKA_SEND_FAILED);
         } catch (Exception e) {
             LogUtils.error("Failed to send message to topic: {}, key: {}, messageId: {}",
                     topic, key, messageDto.getId(), e);
@@ -95,11 +102,14 @@ public class KafkaProducerImpl implements KafkaProducer {
     @Override
     public void send(String topic, String value) {
         try {
-            kafkaTemplate.send(topic, value).get();
+            kafkaTemplate.send(topic, value).get(KAFKA_SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             LogUtils.info("String message sent to topic: {}", topic);
+        } catch (TimeoutException e) {
+            LogUtils.error("Kafka send timed out after {}s, topic: {}", KAFKA_SEND_TIMEOUT_SECONDS, topic, e);
+            throw BusinessException.of(ErrorCode.KAFKA_SEND_FAILED);
         } catch (Exception e) {
             LogUtils.error("Failed to send string message to topic: {}", topic, e);
-            throw new RuntimeException("Kafka string message send failed", e);
+            throw BusinessException.of(ErrorCode.KAFKA_SEND_FAILED);
         }
     }
 }

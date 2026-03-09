@@ -13,7 +13,9 @@ import com.a508.onestep.domain.challenge.repository.ChallengeMasterRepository;
 import com.a508.onestep.domain.challenge.repository.RecommendedRoutineRepository;
 import com.a508.onestep.domain.common.AssignmentStatus;
 import com.a508.onestep.domain.common.Origin;
+import com.a508.onestep.domain.user.entity.GpLedger;
 import com.a508.onestep.domain.user.entity.User;
+import com.a508.onestep.domain.user.repository.GpLedgerRepository;
 import com.a508.onestep.domain.user.repository.UserRepository;
 import com.a508.onestep.global.exception.BusinessException;
 import com.a508.onestep.global.kafka.producer.KafkaProducer;
@@ -22,6 +24,7 @@ import com.a508.onestep.global.logging.utils.LogUtils;
 import com.a508.onestep.global.response.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +42,7 @@ public class ChallengeTransactionHelper {
     private final ChallengeMasterRepository challengeMasterRepository;
     private final ChallengeAssignmentRepository challengeAssignmentRepository;
     private final UserRepository userRepository;
+    private final GpLedgerRepository gpLedgerRepository;
 
     private final ApplicationEventPublisher eventPublisher;
     private final KafkaProducer kafkaProducer;
@@ -85,8 +89,20 @@ public class ChallengeTransactionHelper {
 
         challengeAssignment.complete(requestDto.getEmotion());
 
-        ChallengeCompletedEvent event = ChallengeCompletedEvent.fromChallengeAssignment(challengeAssignment);
-        eventPublisher.publishEvent(event);
+        // idempotency guard
+        Long assignmentId = challengeAssignment.getId();
+        try {
+            GpLedger ledger = GpLedger.challengeCompleteReward(userCode, assignmentId, challengeAssignment.getOrigin());
+            // 즉시 저장
+            gpLedgerRepository.saveAndFlush(ledger);
+
+            // 보상 이벤트 발행
+            ChallengeCompletedEvent event = ChallengeCompletedEvent.fromChallengeAssignment(challengeAssignment);
+            eventPublisher.publishEvent(event);
+        } catch (DataIntegrityViolationException e) {
+            LogUtils.info("이미 보상이 처리된 챌린지 완료입니다. assignmentId={}, userCode={}",
+                    challengeAssignment.getId(), userCode);
+        }
 
         return ChallengeCompleteResponseDto.from(challengeAssignment);
     }

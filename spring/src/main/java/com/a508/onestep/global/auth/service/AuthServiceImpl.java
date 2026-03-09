@@ -56,9 +56,10 @@ public class AuthServiceImpl implements AuthService {
 
         String email = userInfo.getKakaoAccount().getEmail();
 
-        // DB work in short transaction via helper (with semaphore protection)
+        boolean acquired = false;
         try {
             databaseSemaphore.acquire();
+            acquired = true;
 
             AuthTransactionHelper.KakaoLoginResult result = authTransactionHelper.executeKakaoLogin(email);
 
@@ -79,7 +80,7 @@ public class AuthServiceImpl implements AuthService {
             Thread.currentThread().interrupt();
             throw new RuntimeException("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
     }
 
@@ -90,11 +91,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponseDto guestLogin(LoginRequestDto requestDto) {
         String userCode = requestDto.getUserCode();
+        boolean acquired = false;
         try {
             databaseSemaphore.acquire();
+            acquired = true;
 
-            boolean isNew;
-            isNew = authTransactionHelper.executeGuestLogin(userCode);
+            boolean isNew = authTransactionHelper.executeGuestLogin(userCode);
 
             // JWT 토큰 생성
             String accessToken = jwtUtils.generateAccessToken(userCode, RoleType.ROLE_USER.name());
@@ -112,7 +114,7 @@ public class AuthServiceImpl implements AuthService {
             Thread.currentThread().interrupt();
             throw new RuntimeException("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
     }
 
