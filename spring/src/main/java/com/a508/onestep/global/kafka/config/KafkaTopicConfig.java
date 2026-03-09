@@ -68,4 +68,17 @@ public class KafkaTopicConfig {
                 .config("cleanup.policy", "delete")
                 .build();
     }
+
+    /*
+    Outbox 패턴 적용을 위한 토픽 설정
+     */
+    @Bean
+    public NewTopic sendOutboxEvent() {
+        return TopicBuilder.name(KafkaTopics.OUTBOX_EVENT)
+                .partitions(1)
+                .replicas(1)
+                .config("retention.ms", "604800000")
+                .config("cleanup.policy", "delete")
+                .build();
+    }
 }

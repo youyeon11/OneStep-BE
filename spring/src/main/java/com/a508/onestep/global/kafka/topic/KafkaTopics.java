@@ -23,4 +23,9 @@ public final class KafkaTopics {
     초기 유저에게 보내는 코드
      */
     public static final String INITIAL_USER_INFO = "initial.user.topic";
+
+    /*
+    outbox 이벤트 발행을 위한 토픽
+     */
+    public static final String OUTBOX_EVENT = "outbox.event.topic";
 }
