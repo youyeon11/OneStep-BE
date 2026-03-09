@@ -86,14 +86,16 @@ public class UserServiceImpl implements UserService {
         UserInitialJoinSet joinSet;
         String userCode = UserContextHolder.getUserCode();
 
-        try{
+        boolean acquired = false;
+        try {
             databaseSemaphore.acquire();
+            acquired = true;
             joinSet = userTransactionHelper.executeRegisterSurvey(requestDto, userCode);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw SemaphoreAcquisitionException.of("DB 접근 대기 중 인터럽트 발생", e);
         } finally {
-            databaseSemaphore.release();
+            if (acquired) databaseSemaphore.release();
         }
 
         // Kafka send AFTER semaphore release and transaction
