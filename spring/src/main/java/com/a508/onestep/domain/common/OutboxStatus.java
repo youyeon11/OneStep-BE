@@ -4,15 +4,15 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 회원 계정 상태
+ * 아웃박스 패턴 메시지의 전송 상태
  */
 @Getter
 @RequiredArgsConstructor
-public enum UserStatus {
+public enum OutboxStatus {
 
-    ACTIVE("활성"),
-    INACTIVE("비활성"),
-    DELETED("탈퇴");
+    PENDING("전송 대기"),
+    SENT("전송 완료"),
+    FAILED("전송 실패");
 
     private final String description;
 }
